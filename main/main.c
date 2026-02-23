@@ -18,7 +18,7 @@ void current_sensor_setup();
 void vTaskReadSensor()
 {
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = 100 / portTICK_PERIOD_MS;
+    const TickType_t xFrequency = 10 / portTICK_PERIOD_MS;
     xLastWakeTime = xTaskGetTickCount();
     while(1)
     {
@@ -42,6 +42,6 @@ void app_main(void)
 
     static uint8_t ucParameterToPass;
     TaskHandle_t xHandle = NULL;
-    xTaskCreate(vTaskReadSensor, "NAME", 4000, &ucParameterToPass, tskIDLE_PRIORITY, &xHandle);
+    xTaskCreate(vTaskReadSensor, "NAME", 4000, &ucParameterToPass, 5, &xHandle);
     configASSERT( xHandle );
 }
