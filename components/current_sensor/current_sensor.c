@@ -121,7 +121,7 @@ void read_current()
 {
     esp_err_t ret = adc_continuous_read(handle, result, ADC_READ_LEN, &ret_num, 0);
     if (ret == ESP_OK) {
-        ESP_LOGI("TASK", "ret is %x, ret_num is %"PRIu32" bytes", ret, ret_num);
+        // ESP_LOGI("TASK", "ret is %x, ret_num is %"PRIu32" bytes", ret, ret_num);
 
         adc_continuous_data_t parsed_data[ret_num / SOC_ADC_DIGI_RESULT_BYTES];
         uint32_t num_parsed_samples = 0;
@@ -139,7 +139,7 @@ void read_current()
                     int mv = -1;
                     if (cali_ok && adc_raw_to_mv(cali, (int)parsed_data[i].raw_data, &mv) == ESP_OK)
                     {
-                        ESP_LOGI(TAG, "Ch%d raw=%"PRIu32" => %d mV", parsed_data[i].channel, parsed_data[i].raw_data, mv);
+                        // ESP_LOGI(TAG, "Ch%d raw=%"PRIu32" => %d mV", parsed_data[i].channel, parsed_data[i].raw_data, mv);
                     }
                     else
                     {
