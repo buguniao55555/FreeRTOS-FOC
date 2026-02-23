@@ -42,6 +42,6 @@ void app_main(void)
 
     static uint8_t ucParameterToPass;
     TaskHandle_t xHandle = NULL;
-    xTaskCreate(vTaskReadSensor, "NAME", 4000, &ucParameterToPass, tskIDLE_PRIORITY, &xHandle);
+    xTaskCreate(vTaskReadSensor, "NAME", 4000, &ucParameterToPass, 5, &xHandle);
     configASSERT( xHandle );
 }
