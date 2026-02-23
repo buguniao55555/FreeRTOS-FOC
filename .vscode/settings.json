@@ -16,6 +16,7 @@
   ],
   "idf.flashType": "UART",
   "files.associations": {
-    "adc_continuous.h": "c"
+    "adc_continuous.h": "c",
+    "freertos.h": "c"
   }
 }

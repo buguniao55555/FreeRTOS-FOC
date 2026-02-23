@@ -27,12 +27,13 @@ typedef struct {
 } LowPassFilter_t;
 
 // 函数声明
-void LowPassFilter_init(LowPassFilter_t *filter, float time_constant);
-float LowPassFilter_compute(LowPassFilter_t *filter, float x);
-void LowPassFilter_reset(LowPassFilter_t *filter);
 void PIDController_init(PIDController_t *pid, float P, float I, float D, float ramp, float limit);
 float PIDController_compute(PIDController_t *pid, float error);
 void PIDController_reset(PIDController_t *pid);
+void LowPassFilter_init(LowPassFilter_t *filter, float time_constant);
+float LowPassFilter_compute(LowPassFilter_t *filter, float x);
+void LowPassFilter_reset(LowPassFilter_t *filter);
+
 
 #ifdef __cplusplus
 }

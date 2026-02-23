@@ -5,6 +5,15 @@
 #define _constrain(amt,low,high) ((amt)<(low)?(low):((amt)>(high)?(high):(amt)))
 
 // 初始化 PID 控制器
+/**
+ * @brief 初始化 PID 控制器
+ * @param pid PID 控制器结构体
+ * @param P P 参数
+ * @param I I 参数
+ * @param D D 参数
+ * @param ramp 输出斜坡限制
+ * @param limit 输出限幅
+ */
 void PIDController_init(PIDController_t *pid, float P, float I, float D, float ramp, float limit)
 {
     // 设置 PID 参数
