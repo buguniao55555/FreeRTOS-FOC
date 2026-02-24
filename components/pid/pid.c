@@ -5,6 +5,15 @@
 #define _constrain(amt,low,high) ((amt)<(low)?(low):((amt)>(high)?(high):(amt)))
 
 // 初始化 PID 控制器
+/**
+ * @brief 初始化 PID 控制器
+ * @param pid PID 控制器结构体
+ * @param P P 参数
+ * @param I I 参数
+ * @param D D 参数
+ * @param ramp 输出斜坡限制
+ * @param limit 输出限幅
+ */
 void PIDController_init(PIDController_t *pid, float P, float I, float D, float ramp, float limit)
 {
     // 设置 PID 参数
@@ -76,3 +85,46 @@ void PIDController_reset(PIDController_t *pid)
     pid->integral_prev = 0.0f;
     pid->timestamp_prev = esp_timer_get_time();
 }
+
+// 初始化低通滤波器
+void LowPassFilter_init(LowPassFilter_t *filter, float time_constant)
+{
+    filter->Tf = time_constant;
+    filter->y_prev = 0.0f;
+    filter->timestamp_prev = esp_timer_get_time();
+}
+
+// 计算滤波器输出
+float LowPassFilter_compute(LowPassFilter_t *filter, float x)
+{
+    unsigned long timestamp = esp_timer_get_time();
+    float dt = (timestamp - filter->timestamp_prev) * 1e-6f;
+
+    // 时间异常检测
+    if (dt < 0.0f) {
+        dt = 1e-3f;
+    } else if (dt > 0.3f) {
+        // 时间间隔过长，直接输出输入值
+        filter->y_prev = x;
+        filter->timestamp_prev = timestamp;
+        return x;
+    }
+
+    // 一阶低通滤波算法
+    float alpha = filter->Tf / (filter->Tf + dt);
+    float y = alpha * filter->y_prev + (1.0f - alpha) * x;
+    
+    // 保存状态
+    filter->y_prev = y;
+    filter->timestamp_prev = timestamp;
+    
+    return y;
+}
+
+// 重置滤波器
+void LowPassFilter_reset(LowPassFilter_t *filter)
+{
+    filter->y_prev = 0.0f;
+    filter->timestamp_prev = esp_timer_get_time();
+}
+

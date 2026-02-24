@@ -23,15 +23,7 @@ current_readings current;
 
 static const char *TAG = "ADC";
 static const char *TAG_CALI = "adc_cali";
-
-
-
-
-// adc_oneshot_unit_handle_t adc1_handle;
-// static int adc_raw;
-// static int voltage;
-
-
+// 校准ADC
 static bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_bitwidth_t bitwidth, adc_cali_handle_t *out_handle)
 {
     if (!out_handle) {
@@ -71,6 +63,7 @@ static bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_bitwidt
     return false;
 }
 
+// 将ADC原始值转换为mV
 static esp_err_t adc_raw_to_mv(adc_cali_handle_t cali_handle, int raw, int *out_mv)
 {
     if (!cali_handle) {
@@ -79,6 +72,7 @@ static esp_err_t adc_raw_to_mv(adc_cali_handle_t cali_handle, int raw, int *out_
     return adc_cali_raw_to_voltage(cali_handle, raw, out_mv);
 }
 
+// 释放ADC校准
 static void adc_calibration_deinit(adc_cali_handle_t cali_handle)
 {
     if (cali_handle) {
@@ -121,6 +115,7 @@ static void adc_calibration_deinit(adc_cali_handle_t cali_handle)
 
 
 
+// 初始化ADC
 void current_sensor_setup()
 {
     adc_continuous_handle_cfg_t adc_config = {

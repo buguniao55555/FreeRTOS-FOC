@@ -20,10 +20,20 @@ typedef struct {
     unsigned long timestamp_prev; // 上次执行时间戳 （用于计算微分项）
 } PIDController_t;
 
+typedef struct {
+    float Tf;                      // 时间常数
+    float y_prev;                  // 上一次的输出值
+    unsigned long timestamp_prev;  // 上次执行时间戳
+} LowPassFilter_t;
+
 // 函数声明
 void PIDController_init(PIDController_t *pid, float P, float I, float D, float ramp, float limit);
 float PIDController_compute(PIDController_t *pid, float error);
 void PIDController_reset(PIDController_t *pid);
+void LowPassFilter_init(LowPassFilter_t *filter, float time_constant);
+float LowPassFilter_compute(LowPassFilter_t *filter, float x);
+void LowPassFilter_reset(LowPassFilter_t *filter);
+
 
 #ifdef __cplusplus
 }
