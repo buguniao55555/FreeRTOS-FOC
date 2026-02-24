@@ -11,14 +11,14 @@
 
 void AS5600_setup();
 int32_t read_data();
-void read_current();
+current_readings read_current();
 void current_sensor_setup();
 
 
 void vTaskReadSensor()
 {
     TickType_t xLastWakeTime;
-    const TickType_t xFrequency = 10 / portTICK_PERIOD_MS;
+    const TickType_t xFrequency = pdMS_TO_TICKS(10);
     xLastWakeTime = xTaskGetTickCount();
     while(1)
     {
@@ -26,10 +26,11 @@ void vTaskReadSensor()
         int64_t t0 = esp_timer_get_time();
         read_data();
         int64_t t1 = esp_timer_get_time();
-        read_current();
+        current_readings output = read_current();
         int64_t t2 = esp_timer_get_time();
 
         ESP_LOGI("TIMING", "read_data=%lld us, read_current=%lld us, total=%lld us", (long long)(t1 - t0), (long long)(t2 - t1), (long long)(t2 - t0));
+        ESP_LOGI("Current Sensor", "read_data = %lu, %lu", output.Ia, output.Ib);
     }
 }
 
