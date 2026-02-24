@@ -177,26 +177,42 @@ current_readings read_current()
         // if data is from adc channel 1, add to Ia, else add to Ib
         if (data->type1.channel == ADC_IN_1)
         {
-            current.Ia = data->type1.data;
-            read_ADC_1 = 1;
+            int mv = -1;
+            if (cali_ok && adc_raw_to_mv(cali, (int)data->type1.data, &mv) == ESP_OK)
+            {
+                current.Ia = mv;
+                read_ADC_1 = 1;
+            }
         }
         else
         {
-            current.Ib = data->type1.data;
-            read_ADC_2 = 1;
+            int mv = -1;
+            if (cali_ok && adc_raw_to_mv(cali, (int)data->type1.data, &mv) == ESP_OK)
+            {
+                current.Ib = mv;
+                read_ADC_2 = 1;
+            }
         }
 
         // doing the same thing
         data = (adc_digi_output_data_t *) & result[1 * SOC_ADC_DIGI_RESULT_BYTES];
         if (data->type1.channel == ADC_IN_1)
         {
-            current.Ia = data->type1.data;
-            read_ADC_1 = 1;
+            int mv = -1;
+            if (cali_ok && adc_raw_to_mv(cali, (int)data->type1.data, &mv) == ESP_OK)
+            {
+                current.Ia = mv;
+                read_ADC_1 = 1;
+            }
         }
         else
         {
-            current.Ib = data->type1.data;
-            read_ADC_2 = 1;
+            int mv = -1;
+            if (cali_ok && adc_raw_to_mv(cali, (int)data->type1.data, &mv) == ESP_OK)
+            {
+                current.Ib = mv;
+                read_ADC_2 = 1;
+            }
         }
 
         // validate both channels are read
