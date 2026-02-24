@@ -19,6 +19,10 @@ uint32_t ret_num = 0;
 bool cali_ok = false;
 adc_cali_handle_t cali;
 current_readings current;
+adc_digi_output_data_t * data;
+esp_err_t ret;
+bool read_ADC_1 = 0;
+bool read_ADC_2 = 0;
 
 
 static const char *TAG = "ADC";
@@ -155,10 +159,55 @@ void current_sensor_setup()
 
 
 
-void read_current()
+current_readings read_current()
 {
-    esp_err_t ret = adc_continuous_read(handle, result, ADC_READ_LEN, &ret_num, 0);
-    if (ret == ESP_OK) {
+    // flags to check if both adc is read
+    read_ADC_1 = 0;
+    read_ADC_2 = 0;
+
+    // read from adc
+    ret = adc_continuous_read(handle, result, ADC_READ_LEN, &ret_num, 0);
+
+    // if success and number of bytes returned is correct, convert data
+    if (ret == ESP_OK && ret_num == ADC_READ_LEN)
+    {
+        // convert result into struct adc_digi_output_data_t
+        data = (adc_digi_output_data_t *) & result[0 * SOC_ADC_DIGI_RESULT_BYTES];
+
+        // if data is from adc channel 1, add to Ia, else add to Ib
+        if (data->type1.channel == ADC_IN_1)
+        {
+            current.Ia = data->type1.data;
+            read_ADC_1 = 1;
+        }
+        else
+        {
+            current.Ib = data->type1.data;
+            read_ADC_2 = 1;
+        }
+
+        // doing the same thing
+        data = (adc_digi_output_data_t *) & result[1 * SOC_ADC_DIGI_RESULT_BYTES];
+        if (data->type1.channel == ADC_IN_1)
+        {
+            current.Ia = data->type1.data;
+            read_ADC_1 = 1;
+        }
+        else
+        {
+            current.Ib = data->type1.data;
+            read_ADC_2 = 1;
+        }
+
+        // validate both channels are read
+        if (read_ADC_1 && read_ADC_2)
+        {
+            return current;
+        }
+        
+        ESP_LOGE("TASK", "failed to read both channel");
+        exit(EXIT_FAILURE);
+        // ESP_LOGI("ADC", "data is %d, %d, %d, %d, %d, %d, %d, %d", result[0], result[1], result[2], result[3], result[4], result[5], result[6], result[7]);
         // ESP_LOGI("TASK", "ret is %x, ret_num is %"PRIu32" bytes", ret, ret_num);
 
         // adc_continuous_data_t parsed_data[ret_num / SOC_ADC_DIGI_RESULT_BYTES];
@@ -202,8 +251,12 @@ void read_current()
          * To avoid a task watchdog timeout, add a delay here. When you replace the way you process the data,
          * usually you don't need this delay (as this task will block for a while).
          */
-    } else if (ret == ESP_ERR_TIMEOUT) {
-        //We try to read `EXAMPLE_READ_LEN` until API returns timeout, which means there's no available data
-        return;
     }
+    // else if (ret == ESP_ERR_TIMEOUT)
+    // {
+    //     //We try to read `EXAMPLE_READ_LEN` until API returns timeout, which means there's no available data
+    //     exit(EXIT_FAILURE);
+    // }
+    ESP_LOGE("TASK", "failed to read 2, return number is %lu", ret_num);
+    exit(EXIT_FAILURE);
 }

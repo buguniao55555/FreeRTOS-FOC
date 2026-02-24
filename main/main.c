@@ -144,10 +144,10 @@ void app_main(void)
 {
     printf("hello world!");
     // 初始化 current pid
-    init_current_Q_pid();
-    init_current_D_pid();
+    // init_current_Q_pid();
+    // init_current_D_pid();
     // 初始化 GPTimer 10kHz 中断
-    gptimer_handle_t timer = init_10khz_timer_isr();
+    // gptimer_handle_t timer = init_10khz_timer_isr();
 
     // 初始化 AS5600
     AS5600_setup();
