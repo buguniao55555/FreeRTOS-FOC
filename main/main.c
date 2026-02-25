@@ -182,7 +182,7 @@ void vTaskReadSensor()
         int64_t t2 = esp_timer_get_time();
 
         ESP_LOGI("TIMING", "read_data=%lld us, read_current=%lld us, total=%lld us", (long long)(t1 - t0), (long long)(t2 - t1), (long long)(t2 - t0));
-        ESP_LOGI("Current Sensor", "read_data = %lu, %lu", output.Ia, output.Ib);
+        ESP_LOGI("Current Sensor", "read_data = %ld, %ld", output.Ia, output.Ib);
     }
 }
 
@@ -198,6 +198,14 @@ void app_main(void)
 
     // 启动 10kHz 单 ISR（电流环每次跑；位置/速度用分频）
     (void)init_10khz_timer_isr();
+
+    // while(1)
+    // {
+    //     int32_t test1 = read_data();
+    //     float test2 = get_angle(test1);
+    //     float test3 = get_angular_velocity(test1);
+    //     ESP_LOGI("MAIN", "raw = %" PRIu32 ", angle = %f, angular velocity = %f", test1, test2, test3);
+    // }
 
 
     static uint8_t ucParameterToPass;
