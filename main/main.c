@@ -49,9 +49,16 @@ static volatile float g_u_q = 0.0f;
 static volatile float g_u_d = 0.0f;
 
 static float iq_ref;
-static float id_ref;
-static float err_q;
-static float err_d;
+static const float id_ref = 0;
+static _iq iq_meas;
+static _iq id_meas;
+static _iq i_alpha_meas;
+static _iq i_beta_meas;
+static _iq err_q;
+static _iq err_d;
+static float uq_list[10];
+static float ud_list[10];
+bool print_flag = 0;
 
 // // 10kHz -> 100us
 // static const float g_dt = 0.0001f;
@@ -92,9 +99,6 @@ static bool IRAM_ATTR current_loop_isr_cb(gptimer_handle_t timer,
     const gptimer_alarm_event_data_t *edata,
     void *user_ctx)
 {
-    (void)timer;
-    (void)edata;
-    (void)user_ctx;
 
     // static uint32_t pos_count = POS_DIV;
     // static uint32_t vel_count = VEL_DIV;
@@ -121,22 +125,33 @@ static bool IRAM_ATTR current_loop_isr_cb(gptimer_handle_t timer,
     /* -------------------------------------------------------------------------- */
     /*              TODO： 读输入（后续应该把 g_i_*_meas 用 ADC/park 的结果更新）    */
     /* -------------------------------------------------------------------------- */
-    iq_ref  = g_i_q_ref;
-    id_ref  = g_i_d_ref;
+    iq_ref = 0;
+    // id_ref  = g_i_d_ref;
     current_readings output = read_current();
-    
+    ClarkeTransform(output.Ia, output.Ib, &i_alpha_meas, &i_beta_meas);
+    ParkTransform(i_alpha_meas, i_beta_meas, 0, &id_meas, &iq_meas);
+
 
     // 2) 误差
-    err_q = iq_ref - iq_meas;
-    err_d = id_ref - id_meas;
+    err_q = _IQ(iq_ref) - iq_meas;
+    err_d = _IQ(id_ref) - id_meas;
 
     // 3) 两个 PID（同一周期内完成）
-    // float uq = PIDController_compute(&g_current_q_pid, err_q);
-    // float ud = PIDController_compute(&g_current_d_pid, err_d);
+    float uq = PIDController_compute(&g_current_q_pid, _IQtoF(err_q));
+    float ud = PIDController_compute(&g_current_d_pid, _IQtoF(err_d));
+
+    uq_list[edata->count_value % 10] = uq;
+    ud_list[edata->count_value % 10] = ud;
+    if (edata->count_value % 10 == 9)
+    {
+        print_flag = 1;
+    }
 
     // 4) 保存输出
     // g_u_q = uq;
     // g_u_d = ud;
+
+    
     // int64_t t0 = esp_timer_get_time();
     // read_data();
     // int64_t t1 = esp_timer_get_time();
@@ -191,14 +206,22 @@ void vTaskReadSensor()
     while(1)
     {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        int64_t t0 = esp_timer_get_time();
-        read_data();
-        int64_t t1 = esp_timer_get_time();
-        current_readings output = read_current();
-        int64_t t2 = esp_timer_get_time();
+        // int64_t t0 = esp_timer_get_time();
+        // read_data();
+        // int64_t t1 = esp_timer_get_time();
+        // current_readings output = read_current();
+        // int64_t t2 = esp_timer_get_time();
 
-        ESP_LOGI("TIMING", "read_data=%lld us, read_current=%lld us, total=%lld us", (long long)(t1 - t0), (long long)(t2 - t1), (long long)(t2 - t0));
-        ESP_LOGI("Current Sensor", "read_data = %ld, %ld", output.Ia, output.Ib);
+        // ESP_LOGI("TIMING", "read_data=%lld us, read_current=%lld us, total=%lld us", (long long)(t1 - t0), (long long)(t2 - t1), (long long)(t2 - t0));
+        // ESP_LOGI("Current Sensor", "read_data = %ld, %ld", output.Ia, output.Ib);
+        if (print_flag)
+        {
+            print_flag = 0;
+            for (int i = 0; i < 10; ++i)
+            {
+                ESP_LOGI("DATA", "uq = %f, ud = %f", uq_list[i], ud_list[i]);
+            }
+        }
     }
 }
 

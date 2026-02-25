@@ -30,7 +30,7 @@
 // 两相采样 Clarke：只用 ia, ib（隐含 ic = -ia - ib）
 // alpha = ia
 // beta  = (ia + 2*ib) / sqrt(3)
-void Clarke2Phase(_iq ia, _iq ib, _iq *alpha, _iq *beta)
+void ClarkeTransform(_iq ia, _iq ib, _iq *alpha, _iq *beta)
 {
     *alpha = ia;
 
@@ -46,7 +46,7 @@ void Clarke2Phase(_iq ia, _iq ib, _iq *alpha, _iq *beta)
 // 两相反 Clarke：从 alpha,beta 还原 ia, ib（同样隐含 ic = -ia - ib）
 // ia = alpha
 // ib = -0.5*alpha + (sqrt(3)/2)*beta
-void InverseClarke2Phase(_iq alpha, _iq beta, _iq *ia, _iq *ib)
+void InverseClarkeTransform(_iq alpha, _iq beta, _iq *ia, _iq *ib)
 {
     *ia = alpha;
 
