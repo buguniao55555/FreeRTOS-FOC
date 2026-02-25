@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <math.h>
 #include "AS5600.h"
 #include "current_sensor.h"
 #include "transfer.h"
@@ -12,6 +13,13 @@
 #include "esp_attr.h"
 #include "driver/gptimer.h"
 
+
+/* -------------------------------------------------------------------------- */
+/*                                 PID频率参数                                     */
+/* -------------------------------------------------------------------------- */
+#define POS_DIV 50
+#define VEL_DIV 10
+
 void AS5600_setup();
 int32_t read_data();
 current_readings read_current();
@@ -19,6 +27,16 @@ void current_sensor_setup();
 // current pid
 static PIDController_t g_current_q_pid;
 static PIDController_t g_current_d_pid;
+static PIDController_t g_position_pid;
+static PIDController_t g_velocity_pid;
+
+// 目标位置 & 实测位置
+static volatile float g_p_ref = 0.0f;
+static volatile float g_p_meas = 0.0f;
+
+// 目标速度 & 实测速度
+static volatile float g_v_ref = 0.0f;
+static volatile float g_v_meas = 0.0f;
 
 // 目标电流 & 实测电流
 static volatile float g_i_q_ref  = 0.0f;
@@ -29,6 +47,11 @@ static volatile float g_i_d_meas = 0.0f;
 // PID 输出
 static volatile float g_u_q = 0.0f;
 static volatile float g_u_d = 0.0f;
+
+static float iq_ref;
+static float id_ref;
+static float err_q;
+static float err_d;
 
 // // 10kHz -> 100us
 // static const float g_dt = 0.0001f;
@@ -42,17 +65,39 @@ static bool IRAM_ATTR current_loop_isr_cb(gptimer_handle_t timer,
     (void)edata;
     (void)user_ctx;
 
+    // static uint32_t pos_count = POS_DIV;
+    // static uint32_t vel_count = VEL_DIV;
+
+    // if(--pos_count == 0){
+    //     pos_count = POS_DIV;
+
+    //     float pos_ref = g_p_ref;
+    //     float pos_meas = g_p_meas;
+    //     float pos_err = pos_ref - pos_meas;
+    //     g_v_ref = PIDController_compute(&g_position_pid, pos_err);
+    // }
+
+    // if(--vel_count == 0){
+    //     vel_count = VEL_DIV;
+        
+    //     float vel_ref = g_v_ref;
+    //     float vel_meas = g_v_meas;
+
+    //     float vel_err = vel_ref - vel_meas;
+    //     g_i_q_ref = PIDController_compute(&g_velocity_pid, vel_err);
+    //     g_i_d_ref = 0.0f;
+    // }
     /* -------------------------------------------------------------------------- */
     /*              TODO： 读输入（后续应该把 g_i_*_meas 用 ADC/park 的结果更新）    */
     /* -------------------------------------------------------------------------- */
-    float iq_ref  = g_i_q_ref;
-    float iq_meas = g_i_q_meas;
-    float id_ref  = g_i_d_ref;
-    float id_meas = g_i_d_meas;
+    iq_ref  = g_i_q_ref;
+    id_ref  = g_i_d_ref;
+    current_readings output = read_current();
+    output.Ia;
 
     // 2) 误差
-    float err_q = iq_ref - iq_meas;
-    float err_d = id_ref - id_meas;
+    err_q = iq_ref - iq_meas;
+    err_d = id_ref - id_meas;
 
     // 3) 两个 PID（同一周期内完成）
     // float uq = PIDController_compute(&g_current_q_pid, err_q);
@@ -64,7 +109,7 @@ static bool IRAM_ATTR current_loop_isr_cb(gptimer_handle_t timer,
     // int64_t t0 = esp_timer_get_time();
     // read_data();
     // int64_t t1 = esp_timer_get_time();
-    current_readings output = read_current();
+    // current_readings output = read_current();
     // int64_t t2 = esp_timer_get_time();
 
     // ESP_LOGI("TIMING", "read_data=%lld us, read_current=%lld us, total=%lld us", (long long)(t1 - t0), (long long)(t2 - t1), (long long)(t2 - t0));
@@ -73,35 +118,41 @@ static bool IRAM_ATTR current_loop_isr_cb(gptimer_handle_t timer,
     return false; // 不触发任务切换
 }
 
-// 初始化 current pid
-static void init_current_Q_pid(void)
+
+static void init_all_pids(void)
 {
-    const float Kp = 0.1f;
-    const float Ki = 10.0f;
-    const float Kd = 0.0f;
+    // 电流环（d/q）
+    const float cur_kp = 0.1f;
+    const float cur_ki = 10.0f;
+    const float cur_kd = 0.0f;
+    const float cur_ramp = 0.0f;
+    const float cur_limit = 1.0f;
 
-    const float ramp  = 0.0f;
-    const float limit = 1.0f;   // 假设输出限幅 [-1, 1]
+    PIDController_init(&g_current_q_pid, cur_kp, cur_ki, cur_kd, cur_ramp, cur_limit);
+    PIDController_init(&g_current_d_pid, cur_kp, cur_ki, cur_kd, cur_ramp, cur_limit);
 
-    PIDController_init(&g_current_q_pid, Kp, Ki, Kd, ramp, limit);
+    // 位置环（输出：速度参考 g_v_ref，单位建议 rad/s）
+    const float pos_kp = 0.1f;
+    const float pos_ki = 10.0f;
+    const float pos_kd = 0.0f;
+    const float pos_ramp = 0.0f;
+    const float pos_limit = 1.0f;
+    PIDController_init(&g_position_pid, pos_kp, pos_ki, pos_kd, pos_ramp, pos_limit);
 
+    // 速度环（输出：Iq参考 g_i_q_ref）
+    const float vel_kp = 0.1f;
+    const float vel_ki = 10.0f;
+    const float vel_kd = 0.0f;
+    const float vel_ramp = 0.0f;
+    const float vel_limit = 1.0f;
+    PIDController_init(&g_velocity_pid, vel_kp, vel_ki, vel_kd, vel_ramp, vel_limit);
 }
 
-static void init_current_D_pid(void){
-    const float Kp = 0.1f;
-    const float Ki = 10.0f;
-    const float Kd = 0.0f;
-
-    const float ramp = 0.0f;
-    const float limit = 1.0f;
-
-    PIDController_init(&g_current_d_pid, Kp, Ki, Kd, ramp, limit);
-
-}
 
 // 初始化 GPTimer 10kHz 中断
 static gptimer_handle_t init_10khz_timer_isr(void)
-{
+{   
+    
     gptimer_handle_t timer = NULL;
 
     // 1MHz 分辨率 => 1 tick = 1 us，10kHz => alarm_count = 100
@@ -159,9 +210,11 @@ void app_main(void)
     AS5600_setup();
     current_sensor_setup();
 
-    
-    // 初始化 GPTimer 10kHz 中断
-    gptimer_handle_t timer = init_10khz_timer_isr();
+    // 初始化 PID（位置/速度/电流）
+    init_all_pids();
+
+    // 启动 10kHz 单 ISR（电流环每次跑；位置/速度用分频）
+    (void)init_10khz_timer_isr();
 
     // while(1)
     // {
