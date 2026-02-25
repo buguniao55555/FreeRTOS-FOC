@@ -124,7 +124,7 @@ static bool IRAM_ATTR current_loop_isr_cb(gptimer_handle_t timer,
     iq_ref  = g_i_q_ref;
     id_ref  = g_i_d_ref;
     current_readings output = read_current();
-    output.Ia;
+    
 
     // 2) 误差
     err_q = iq_ref - iq_meas;
