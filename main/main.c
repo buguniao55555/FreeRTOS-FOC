@@ -51,7 +51,38 @@ static volatile float g_u_d = 0.0f;
 // // 10kHz -> 100us
 // static const float g_dt = 0.0001f;
 
-// 10kHz ISR
+
+static void init_all_pids(void)
+{
+    // 电流环（d/q）
+    const float cur_kp = 0.1f;
+    const float cur_ki = 10.0f;
+    const float cur_kd = 0.0f;
+    const float cur_ramp = 0.0f;
+    const float cur_limit = 1.0f;
+
+    PIDController_init(&g_current_q_pid, cur_kp, cur_ki, cur_kd, cur_ramp, cur_limit);
+    PIDController_init(&g_current_d_pid, cur_kp, cur_ki, cur_kd, cur_ramp, cur_limit);
+
+    // 位置环（输出：速度参考 g_v_ref，单位建议 rad/s）
+    const float pos_kp = 0.1f;
+    const float pos_ki = 10.0f;
+    const float pos_kd = 0.0f;
+    const float pos_ramp = 0.0f;
+    const float pos_limit = 1.0f;
+    PIDController_init(&g_position_pid, pos_kp, pos_ki, pos_kd, pos_ramp, pos_limit);
+
+    // 速度环（输出：Iq参考 g_i_q_ref）
+    const float vel_kp = 0.1f;
+    const float vel_ki = 10.0f;
+    const float vel_kd = 0.0f;
+    const float vel_ramp = 0.0f;
+    const float vel_limit = 1.0f;
+    PIDController_init(&g_velocity_pid, vel_kp, vel_ki, vel_kd, vel_ramp, vel_limit);
+}
+/* -------------------------------------------------------------------------- */
+/*                                10kHz ISR                                   */
+/* -------------------------------------------------------------------------- */
 static bool IRAM_ATTR current_loop_isr_cb(gptimer_handle_t timer,
     const gptimer_alarm_event_data_t *edata,
     void *user_ctx)
@@ -106,34 +137,6 @@ return false; // 不触发任务切换
 }
 
 
-static void init_all_pids(void)
-{
-    // 电流环（d/q）
-    const float cur_kp = 0.1f;
-    const float cur_ki = 10.0f;
-    const float cur_kd = 0.0f;
-    const float cur_ramp = 0.0f;
-    const float cur_limit = 1.0f;
-
-    PIDController_init(&g_current_q_pid, cur_kp, cur_ki, cur_kd, cur_ramp, cur_limit);
-    PIDController_init(&g_current_d_pid, cur_kp, cur_ki, cur_kd, cur_ramp, cur_limit);
-
-    // 位置环（输出：速度参考 g_v_ref，单位建议 rad/s）
-    const float pos_kp = 0.1f;
-    const float pos_ki = 10.0f;
-    const float pos_kd = 0.0f;
-    const float pos_ramp = 0.0f;
-    const float pos_limit = 1.0f;
-    PIDController_init(&g_position_pid, pos_kp, pos_ki, pos_kd, pos_ramp, pos_limit);
-
-    // 速度环（输出：Iq参考 g_i_q_ref）
-    const float vel_kp = 0.1f;
-    const float vel_ki = 10.0f;
-    const float vel_kd = 0.0f;
-    const float vel_ramp = 0.0f;
-    const float vel_limit = 1.0f;
-    PIDController_init(&g_velocity_pid, vel_kp, vel_ki, vel_kd, vel_ramp, vel_limit);
-}
 
 
 // 初始化 GPTimer 10kHz 中断
@@ -198,14 +201,6 @@ void app_main(void)
 
     // 启动 10kHz 单 ISR（电流环每次跑；位置/速度用分频）
     (void)init_10khz_timer_isr();
-
-    // while(1)
-    // {
-    //     int32_t test1 = read_data();
-    //     float test2 = get_angle(test1);
-    //     float test3 = get_angular_velocity(test1);
-    //     ESP_LOGI("MAIN", "raw = %" PRIu32 ", angle = %f, angular velocity = %f", test1, test2, test3);
-    // }
 
 
     static uint8_t ucParameterToPass;
