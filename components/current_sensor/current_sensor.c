@@ -180,7 +180,7 @@ current_readings read_current()
             int mv = -1;
             if (cali_ok && adc_raw_to_mv(cali, (int)data->type1.data, &mv) == ESP_OK)
             {
-                current.Ia = mv;
+                current.Ia = 2 * ((int32_t)mv - REF_VOLTAGE);
                 read_ADC_1 = 1;
             }
         }
@@ -189,7 +189,7 @@ current_readings read_current()
             int mv = -1;
             if (cali_ok && adc_raw_to_mv(cali, (int)data->type1.data, &mv) == ESP_OK)
             {
-                current.Ib = mv;
+                current.Ib = 2 * ((int32_t)mv - REF_VOLTAGE);
                 read_ADC_2 = 1;
             }
         }
@@ -201,7 +201,7 @@ current_readings read_current()
             int mv = -1;
             if (cali_ok && adc_raw_to_mv(cali, (int)data->type1.data, &mv) == ESP_OK)
             {
-                current.Ia = mv;
+                current.Ia = 2 * ((int32_t)mv - REF_VOLTAGE);
                 read_ADC_1 = 1;
             }
         }
@@ -210,7 +210,7 @@ current_readings read_current()
             int mv = -1;
             if (cali_ok && adc_raw_to_mv(cali, (int)data->type1.data, &mv) == ESP_OK)
             {
-                current.Ib = mv;
+                current.Ib = 2 * ((int32_t)mv - REF_VOLTAGE);
                 read_ADC_2 = 1;
             }
         }

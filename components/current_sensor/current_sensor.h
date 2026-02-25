@@ -10,6 +10,7 @@
 #define ADC_SAMPLE_RATE 40 * 1000
 #define ADC_ATTEN ADC_ATTEN_DB_12
 #define ADC_BIT_WIDTH SOC_ADC_DIGI_MAX_BITWIDTH
+#define REF_VOLTAGE 1645
 
 
 typedef struct
