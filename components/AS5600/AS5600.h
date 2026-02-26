@@ -1,5 +1,5 @@
 #pragma once
-
+#include "IQmathLib.h"
 #include <stdint.h>
 
 #define SDA0 GPIO_NUM_19
@@ -12,6 +12,6 @@
 
 void AS5600_setup(void);
 int32_t read_data(void);                 // 返回累积counts（带overflow展开）
-float get_angle(int32_t sensor_counts);  // 度（deg）
+_iq get_angle(int32_t sensor_counts);  // 度（deg）
 float get_angular_velocity(int32_t sensor_counts); // rad/s
 

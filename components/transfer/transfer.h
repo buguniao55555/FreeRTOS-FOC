@@ -1,4 +1,3 @@
-#define GLOBAL_IQ               18
 #include "IQmathLib.h"
 
 #ifndef TRANSFORM_H

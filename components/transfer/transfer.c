@@ -59,6 +59,19 @@ void InverseClarkeTransform(_iq alpha, _iq beta, _iq *ia, _iq *ib)
 // Park 变换：αβ → dq
 // 公式：d = alpha * cos(theta) + beta * sin(theta)
 // q = -alpha * sin(theta) + beta * cos(theta)
+
+
+/**
+ * @brief Park transform
+ *
+ * Transform I_alpha and I_beta to I_q and I_d. 
+ *
+ * @param[in]   alpha   I_alpha value in mA
+ * @param[in]   beta    I_beta value in mA
+ * @param[in]   theta   encoder value in degrees / 360
+ * @param[out]  d       I_d pointer to store calculated Id in mA
+ * @param[out]  q       I_q pointer to store calculated Iq in mA
+ */
 void ParkTransform(_iq alpha, _iq beta, _iq theta, _iq *d, _iq *q)
 {
     _iq sin = _IQsin(theta);
