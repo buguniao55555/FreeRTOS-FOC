@@ -4,6 +4,8 @@
 #include "driver/i2c_master.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "math.h"
+#include "IQmathLib.h"
 
 i2c_master_dev_handle_t dev_handle;
 
@@ -85,10 +87,20 @@ int32_t read_data()
     return (int32_t)sensor_angle + 4096 * sensor_overflow;
 }
 
-float get_angle(int32_t sensor_counts)
+/**
+ * @brief Park transform
+ *
+ * Transform I_alpha and I_beta to I_q and I_d. 
+ *
+ * @param[in]   sensor_counts   sensor count number in raw integer
+ * 
+ * @return Computed angle in _iq type and of format (degree / 360)
+ */
+_iq get_angle(int32_t sensor_counts)
 {
     // 4096 counts per mechanical revolution
-    return ((float)sensor_counts) * (360.0f / 4096.0f);
+     
+    return (_IQ((float)sensor_counts  * 0.0015339808f));
 }
 
 float get_angular_velocity(int32_t sensor_counts)
