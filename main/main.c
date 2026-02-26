@@ -77,6 +77,17 @@ volatile bool print_flag = 0;
 static _iq motor_angle = 0;
 static _iq motor_angle_list[10];
 
+static _iq v_alpha;
+static _iq v_beta;
+static _iq v_alpha_list[10];
+static _iq v_beta_list[10];
+
+static _iq v_a;
+static _iq v_b;
+static _iq v_c;
+static _iq v_a_list[10];
+static _iq v_b_list[10];
+static _iq v_c_list[10];
 
 // // 10kHz -> 100us
 // static const float g_dt = 0.0001f;
@@ -201,7 +212,7 @@ static bool IRAM_ATTR current_loop_isr_cb(gptimer_handle_t timer,
     /*              TODO： 读输入（后续应该把 g_i_*_meas 用 ADC/park 的结果更新）    */
     /* -------------------------------------------------------------------------- */
     static uint32_t isr_cnt = 0;
-    iq_ref = 0;
+    iq_ref = 100;
     // id_ref  = g_i_d_ref;
     current_readings output = read_current();
     // ia_list[isr_cnt % 10] = _IQ(output.Ia);
@@ -230,6 +241,17 @@ static bool IRAM_ATTR current_loop_isr_cb(gptimer_handle_t timer,
 
     uq_list[isr_cnt % 10] = uq;
     ud_list[isr_cnt % 10] = ud;
+
+    InverseParkTransform(ud, uq, motor_angle, &v_alpha, &v_beta);
+
+    v_alpha_list[isr_cnt % 10] = v_alpha;
+    v_beta_list[isr_cnt % 10] = v_beta;
+
+    InverseClarkeTransform(v_alpha, v_beta, &v_a, &v_b);
+    v_c = - v_a - v_b;
+    v_a_list[isr_cnt % 10] = v_a;
+    v_b_list[isr_cnt % 10] = v_b;
+    v_c_list[isr_cnt % 10] = v_c;
 
     if (isr_cnt % 10 == 9)
     {
@@ -321,7 +343,7 @@ void vTaskPrintData()
             print_flag = 0;
             for (int i = 0; i < 10; ++i)
             {
-                ESP_LOGI("DATA", "ia = %f, ib = %f, i_alpha = %f, i_beta = %f, iq = %f, id = %f, uq = %f, ud = %f, angle = %f", _IQtoF(ia_list[i]), _IQtoF(ib_list[i]), _IQtoF(i_alpha_list[i]), _IQtoF(i_beta_list[i]), _IQtoF(iq_list[i]), _IQtoF(id_list[i]), _IQtoF(uq_list[i]), _IQtoF(ud_list[i]), _IQtoF(motor_angle_list[i]));
+                ESP_LOGI("DATA", "ia = %f, ib = %f, i_alpha = %f, i_beta = %f, iq = %f, id = %f, uq = %f, ud = %f, angle = %f, v_alpha = %f, v_beta = %f, va = %f, vb = %f, vc = %f", _IQtoF(ia_list[i]), _IQtoF(ib_list[i]), _IQtoF(i_alpha_list[i]), _IQtoF(i_beta_list[i]), _IQtoF(iq_list[i]), _IQtoF(id_list[i]), _IQtoF(uq_list[i]), _IQtoF(ud_list[i]), _IQtoF(motor_angle_list[i]), _IQtoF(v_alpha_list[i]), _IQtoF(v_beta_list[i]), _IQtoF(v_a_list[i]), _IQtoF(v_b_list[i]), _IQtoF(v_c_list[i]));
             }
         }
     }
