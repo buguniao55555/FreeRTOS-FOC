@@ -1,10 +1,7 @@
 #include "svpwm.h"
 
-static const _iq M_SQRT3 = _IQ(1.7320508075688772f);
 static const _iq ONE_IQ = _IQ(1.0f);
 static const _iq SQRT3_IQ = _IQ(1.7320508075688772f);
-static const _iq INV_SQRT3_IQ = _IQ(0.5773502691896258f);         // 1/sqrt(3)
-static const _iq TWO_INV_SQRT3_IQ = _IQ(1.1547005383792517f);     // 2/sqrt(3)
 
 static inline _iq clamp_0_1(_iq x)
 {
@@ -38,22 +35,22 @@ void svpwm_generate(foc_uvw_t *uvw, const foc_ab_t *ab)
     switch (sextant) {
         // sextant v1-v2
         case 1: {
-            _iq t1 = -_IQmpy(ab->alpha, M_SQRT3) + ab->beta;
+            _iq t1 = -_IQmpy(ab->alpha, SQRT3_IQ) + ab->beta;
             _iq t2 = -_IQmpy2(ab->beta);
     
             // PWM timings
-            uvw->u = _IQdiv2(_IQ(1.F) - t1 - t2);
+            uvw->u = _IQdiv2(ONE_IQ - t1 - t2);
             uvw->v = uvw->u + t1;
             uvw->w = uvw->v + t2;
         } break;
     
         // sextant v2-v3
         case 2: {
-            _iq t2 = -_IQmpy(ab->alpha, _IQ(M_SQRT3)) - ab->beta;
-            _iq t3 =  _IQmpy(ab->alpha, _IQ(M_SQRT3)) - ab->beta;
+            _iq t2 = -_IQmpy(ab->alpha, SQRT3_IQ) - ab->beta;
+            _iq t3 =  _IQmpy(ab->alpha, SQRT3_IQ) - ab->beta;
     
             // PWM timings
-            uvw->v = _IQdiv2(_IQ(1.F) - t2 - t3);
+            uvw->v = _IQdiv2(ONE_IQ - t2 - t3);
             uvw->u = uvw->v + t3;
             uvw->w = uvw->u + t2;
         } break;
@@ -61,32 +58,32 @@ void svpwm_generate(foc_uvw_t *uvw, const foc_ab_t *ab)
         // sextant v3-v4
         case 3: {
             _iq t3 = -_IQmpy2(ab->beta);
-            _iq t4 = _IQmpy(ab->alpha, _IQ(M_SQRT3)) + ab->beta;
+            _iq t4 = _IQmpy(ab->alpha, SQRT3_IQ) + ab->beta;
     
             // PWM timings
-            uvw->v = _IQdiv2(_IQ(1.F) - t3 - t4);
+            uvw->v = _IQdiv2(ONE_IQ - t3 - t4);
             uvw->w = uvw->v + t3;
             uvw->u = uvw->w + t4;
         } break;
     
         // sextant v4-v5
         case 4: {
-            _iq t4 = _IQmpy(ab->alpha, _IQ(M_SQRT3)) - ab->beta;
+            _iq t4 = _IQmpy(ab->alpha, SQRT3_IQ) - ab->beta;
             _iq t5 = _IQmpy2(ab->beta);
     
             // PWM timings
-            uvw->w = _IQdiv2(_IQ(1.F) - t4 - t5);
+            uvw->w = _IQdiv2(ONE_IQ - t4 - t5);
             uvw->v = uvw->w + t5;
             uvw->u = uvw->v + t4;
         } break;
     
         // sextant v5-v6
         case 5: {
-            _iq t5 =  _IQmpy(ab->alpha, _IQ(M_SQRT3)) + ab->beta;
-            _iq t6 = -_IQmpy(ab->alpha, _IQ(M_SQRT3)) + ab->beta;
+            _iq t5 =  _IQmpy(ab->alpha, SQRT3_IQ) + ab->beta;
+            _iq t6 = -_IQmpy(ab->alpha, SQRT3_IQ) + ab->beta;
     
             // PWM timings
-            uvw->w = _IQdiv2(_IQ(1.F) - t5 - t6);
+            uvw->w = _IQdiv2(ONE_IQ - t5 - t6);
             uvw->u = uvw->w + t5;
             uvw->v = uvw->u + t6;
         } break;
@@ -94,10 +91,10 @@ void svpwm_generate(foc_uvw_t *uvw, const foc_ab_t *ab)
         // sextant v6-v1
         case 6: {
             _iq t6 = _IQmpy2(ab->beta);
-            _iq t1 = -_IQmpy(ab->alpha, _IQ(M_SQRT3)) - ab->beta;
+            _iq t1 = -_IQmpy(ab->alpha, SQRT3_IQ) - ab->beta;
     
             // PWM timings
-            uvw->u = _IQdiv2(_IQ(1.F) - t6 - t1);
+            uvw->u = _IQdiv2(ONE_IQ - t6 - t1);
             uvw->w = uvw->u + t1;
             uvw->v = uvw->w + t6;
         } break;
