@@ -8,7 +8,7 @@
 #define PWM_GPIO_W       25
 
 // pwm 频率
-#define PWM_FREQ_HZ      20000
+#define PWM_FREQ_HZ      30000
 // timer 分辨率
 #define TIMER_RES_HZ     10000000
 

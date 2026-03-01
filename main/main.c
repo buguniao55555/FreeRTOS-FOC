@@ -13,6 +13,8 @@
 #include "pidIQ.h"
 #include "esp_attr.h"
 #include "driver/gptimer.h"
+#include "mcpwm.h"
+#include "driver/gpio.h"
 
 
 /* -------------------------------------------------------------------------- */
@@ -21,10 +23,16 @@
 #define POS_DIV 50
 #define VEL_DIV 10
 
+#define _constraint(in, low, high) ((in) < (low) ? (low) : ((in) > (high) ? (high) : (in)))
+#define power_supply 12
+
 void AS5600_setup();
 int32_t read_data();
 current_readings read_current();
 void current_sensor_setup();
+void pwm_3phase_init(void);
+void pwm_3phase_set_duty(float du, float dv, float dw);
+
 // current pid
 // static PIDController_t g_current_q_pid;
 // static PIDController_t g_current_d_pid;
@@ -177,6 +185,18 @@ static void init_all_pids(void)
 }
 
 
+void set_pwm(_iq Ua, _iq Ub, _iq Uc)
+{
+    Ua = _constraint(Ua, _IQ(0), _IQ(power_supply));
+    Ub = _constraint(Ub, _IQ(0), _IQ(power_supply));
+    Uc = _constraint(Uc, _IQ(0), _IQ(power_supply));
+    Ua = _constraint(_IQdiv(Ua, _IQ(power_supply)), _IQ(0), _IQ(1));
+    Ub = _constraint(_IQdiv(Ub, _IQ(power_supply)), _IQ(0), _IQ(1));
+    Uc = _constraint(_IQdiv(Uc, _IQ(power_supply)), _IQ(0), _IQ(1));
+    pwm_3phase_set_duty(_IQtoF(Ua), _IQtoF(Ub), _IQtoF(Uc));
+}
+
+
 
 /* -------------------------------------------------------------------------- */
 /*                                10kHz ISR                                   */
@@ -249,9 +269,14 @@ static bool IRAM_ATTR current_loop_isr_cb(gptimer_handle_t timer,
 
     InverseClarkeTransform(v_alpha, v_beta, &v_a, &v_b);
     v_c = - v_a - v_b;
+    v_a += _IQ(power_supply / 2);
+    v_b += _IQ(power_supply / 2);
+    v_c += _IQ(power_supply / 2);
     v_a_list[isr_cnt % 10] = v_a;
     v_b_list[isr_cnt % 10] = v_b;
     v_c_list[isr_cnt % 10] = v_c;
+
+    set_pwm(v_a, v_b, v_c);
 
     if (isr_cnt % 10 == 9)
     {
@@ -360,11 +385,17 @@ void app_main(void)
     AS5600_setup();
     current_sensor_setup();
 
+    gpio_set_direction(GPIO_NUM_12, GPIO_MODE_OUTPUT);
+    gpio_set_level(GPIO_NUM_12, 1);
+    pwm_3phase_init();
+    // pwm_3phase_set_duty(0.6, 0.7, 0.8);
+    // while(1);
+
     // 初始化 PID（位置/速度/电流）
     init_all_pids();
 
     // 启动 10kHz 单 ISR（电流环每次跑；位置/速度用分频）
-    (void)init_10khz_timer_isr();
+    init_10khz_timer_isr();
 
 
     static uint8_t ucParameterToPass;
