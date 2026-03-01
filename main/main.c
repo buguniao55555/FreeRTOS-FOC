@@ -31,7 +31,7 @@ int32_t read_data();
 current_readings read_current();
 void current_sensor_setup();
 void pwm_3phase_init(void);
-void pwm_3phase_set_duty(float du, float dv, float dw);
+void pwm_3phase_set_duty_iq(_iq du, _iq dv, _iq dw);
 
 // current pid
 // static PIDController_t g_current_q_pid;
@@ -193,7 +193,7 @@ void set_pwm(_iq Ua, _iq Ub, _iq Uc)
     Ua = _constraint(_IQdiv(Ua, _IQ(power_supply)), _IQ(0), _IQ(1));
     Ub = _constraint(_IQdiv(Ub, _IQ(power_supply)), _IQ(0), _IQ(1));
     Uc = _constraint(_IQdiv(Uc, _IQ(power_supply)), _IQ(0), _IQ(1));
-    pwm_3phase_set_duty(_IQtoF(Ua), _IQtoF(Ub), _IQtoF(Uc));
+    pwm_3phase_set_duty_iq(Ua, Ub, Uc);
 }
 
 

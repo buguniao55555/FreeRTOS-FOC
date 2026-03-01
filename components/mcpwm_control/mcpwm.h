@@ -4,6 +4,8 @@
 extern "C" {
 #endif
 
+#include "IQmathLib.h"
+
 /**
  * @brief Initialize 3-phase PWM outputs (U/V/W) using MCPWM.
  *
@@ -15,11 +17,13 @@ void pwm_3phase_init(void);
 /**
  * @brief Set 3-phase PWM duty cycles.
  *
- * @param du Duty for phase U in range [0.0, 1.0]
- * @param dv Duty for phase V in range [0.0, 1.0]
- * @param dw Duty for phase W in range [0.0, 1.0]
+ * Duty is in _iq format, expected range [0, 1] (Q = GLOBAL_IQ).
+ *
+ * @param du Duty for phase U in range [0, 1] (IQ)
+ * @param dv Duty for phase V in range [0, 1] (IQ)
+ * @param dw Duty for phase W in range [0, 1] (IQ)
  */
-void pwm_3phase_set_duty(float du, float dv, float dw);
+void pwm_3phase_set_duty_iq(_iq du, _iq dv, _iq dw);
 
 #ifdef __cplusplus
 }

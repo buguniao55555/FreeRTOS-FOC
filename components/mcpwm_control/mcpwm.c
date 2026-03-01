@@ -1,6 +1,7 @@
 #include "driver/mcpwm_timer.h"
 #include "driver/mcpwm_prelude.h"
 #include "esp_check.h"
+#include "mcpwm.h"
 
 #define MCPWM_GROUP_ID   0
 #define PWM_GPIO_U       32
@@ -17,11 +18,30 @@ static mcpwm_oper_handle_t       s_oper_u, s_oper_v, s_oper_w;
 static mcpwm_cmpr_handle_t       s_cmpr_u, s_cmpr_v, s_cmpr_w;
 static mcpwm_gen_handle_t        s_gen_u,  s_gen_v,  s_gen_w;
 static const uint32_t period_ticks = TIMER_RES_HZ / PWM_FREQ_HZ;
-static inline uint32_t duty_to_ticks(float duty, uint32_t period_ticks)
+static inline _iq clamp_0_1_iq(_iq x)
 {
-    if (duty < 0) duty = 0;
-    if (duty > 1) duty = 1;
-    return (uint32_t)(duty * (float)period_ticks);
+    const _iq one = (_iq)(1L << GLOBAL_IQ);
+    if (x < 0) return 0;
+    if (x > one) return one;
+    return x;
+}
+
+static inline uint32_t duty_iq_to_ticks(_iq duty, uint32_t period_ticks)
+{
+    // duty: Q(GLOBAL_IQ) in [0,1] -> ticks in [0, period_ticks-1]
+    duty = clamp_0_1_iq(duty);
+    int64_t prod = (int64_t)duty * (int64_t)period_ticks;
+    int64_t ticks = (prod >> GLOBAL_IQ);
+    if (ticks < 0) {
+        return 0;
+    }
+    if (period_ticks == 0) {
+        return 0;
+    }
+    if ((uint64_t)ticks >= period_ticks) {
+        return period_ticks - 1;
+    }
+    return (uint32_t)ticks;
 }
 
 void make_phase(mcpwm_timer_handle_t timer,
@@ -87,11 +107,11 @@ void pwm_3phase_init(void)
     ESP_ERROR_CHECK(mcpwm_timer_start_stop(s_timer, MCPWM_TIMER_START_NO_STOP));
 }
 
-void pwm_3phase_set_duty(float du, float dv, float dw)
+void pwm_3phase_set_duty_iq(_iq du, _iq dv, _iq dw)
 {
-    uint32_t cu = duty_to_ticks(du, period_ticks);
-    uint32_t cv = duty_to_ticks(dv, period_ticks);
-    uint32_t cw = duty_to_ticks(dw, period_ticks);
+    uint32_t cu = duty_iq_to_ticks(du, period_ticks);
+    uint32_t cv = duty_iq_to_ticks(dv, period_ticks);
+    uint32_t cw = duty_iq_to_ticks(dw, period_ticks);
 
     mcpwm_comparator_set_compare_value(s_cmpr_u, cu);
     mcpwm_comparator_set_compare_value(s_cmpr_v, cv);
