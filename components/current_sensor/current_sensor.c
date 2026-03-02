@@ -23,6 +23,7 @@ adc_digi_output_data_t * data;
 esp_err_t ret;
 bool read_ADC_1 = 0;
 bool read_ADC_2 = 0;
+static _iq inv_1000 = _IQ(0.001f);
 
 
 static const char *TAG = "ADC";
@@ -164,6 +165,8 @@ current_readings read_current()
     // flags to check if both adc is read
     read_ADC_1 = 0;
     read_ADC_2 = 0;
+    static _iq ma_Ia;
+    static _iq ma_Ib;
 
     // read from adc
     ret = adc_continuous_read(handle, result, ADC_READ_LEN, &ret_num, 0);
@@ -180,7 +183,8 @@ current_readings read_current()
             int mv = -1;
             if (cali_ok && adc_raw_to_mv(cali, (int)data->type1.data, &mv) == ESP_OK)
             {
-                current.Ia = 2 * ((int32_t)mv - REF_VOLTAGE);
+                ma_Ia = _IQ(2 * ((int32_t)mv - REF_VOLTAGE));
+                current.Ia = _IQmpy(ma_Ia, inv_1000);
                 read_ADC_1 = 1;
             }
         }
@@ -189,7 +193,8 @@ current_readings read_current()
             int mv = -1;
             if (cali_ok && adc_raw_to_mv(cali, (int)data->type1.data, &mv) == ESP_OK)
             {
-                current.Ib = 2 * ((int32_t)mv - REF_VOLTAGE);
+                ma_Ib = _IQ(2 * ((int32_t)mv - REF_VOLTAGE));
+                current.Ib = _IQmpy(ma_Ib, inv_1000);
                 read_ADC_2 = 1;
             }
         }
@@ -201,7 +206,8 @@ current_readings read_current()
             int mv = -1;
             if (cali_ok && adc_raw_to_mv(cali, (int)data->type1.data, &mv) == ESP_OK)
             {
-                current.Ia = 2 * ((int32_t)mv - REF_VOLTAGE);
+                ma_Ia = _IQ(2 * ((int32_t)mv - REF_VOLTAGE));
+                current.Ia = _IQmpy(ma_Ia, inv_1000);
                 read_ADC_1 = 1;
             }
         }
@@ -210,7 +216,8 @@ current_readings read_current()
             int mv = -1;
             if (cali_ok && adc_raw_to_mv(cali, (int)data->type1.data, &mv) == ESP_OK)
             {
-                current.Ib = 2 * ((int32_t)mv - REF_VOLTAGE);
+                ma_Ib = _IQ(2 * ((int32_t)mv - REF_VOLTAGE));
+                current.Ib = _IQmpy(ma_Ib, inv_1000);
                 read_ADC_2 = 1;
             }
         }

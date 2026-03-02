@@ -134,11 +134,11 @@ static _iq v_c_list[10];
 static void init_all_pids(void)
 {
     // 电流环（d/q）
-    const float cur_kp = 0.1f;
+    const float cur_kp = 5.0f;
     const float cur_ki = 0.0f;
     const float cur_kd = 0.0f;
     const float cur_ramp = 0.0f;
-    const float cur_limit = 1.0f;
+    const float cur_limit = 6.0f;
 
     // 电流环采样周期（比如 10kHz -> 0.0001s）
     const float cur_Ts = 0.0001f;
@@ -232,16 +232,16 @@ static bool IRAM_ATTR current_loop_isr_cb(gptimer_handle_t timer,
     /*              TODO： 读输入（后续应该把 g_i_*_meas 用 ADC/park 的结果更新）    */
     /* -------------------------------------------------------------------------- */
     static uint32_t isr_cnt = 0;
-    iq_ref = 100;
+    iq_ref = _IQ(0.1);
     // id_ref  = g_i_d_ref;
     current_readings output = read_current();
-    // ia_list[isr_cnt % 10] = _IQ(output.Ia);
-    // ib_list[isr_cnt % 10] = _IQ(output.Ib);
-    ia_list[isr_cnt % 10] = _IQ(2);
-    ib_list[isr_cnt % 10] = _IQ(2);
+    ia_list[isr_cnt % 10] = output.Ia;
+    ib_list[isr_cnt % 10] = output.Ib;
+    // ia_list[isr_cnt % 10] = _IQ(2);
+    // ib_list[isr_cnt % 10] = _IQ(2);
 
-    // ClarkeTransform(_IQ(output.Ia), _IQ(output.Ib), &i_alpha_meas, &i_beta_meas);
-    ClarkeTransform(_IQ(2), _IQ(2), &i_alpha_meas, &i_beta_meas);
+    ClarkeTransform(output.Ia, output.Ib, &i_alpha_meas, &i_beta_meas);
+    // ClarkeTransform(_IQ(2), _IQ(2), &i_alpha_meas, &i_beta_meas);
     i_alpha_list[isr_cnt % 10] = i_alpha_meas;
     i_beta_list[isr_cnt % 10] = i_beta_meas;
 
@@ -252,8 +252,8 @@ static bool IRAM_ATTR current_loop_isr_cb(gptimer_handle_t timer,
     id_list[isr_cnt % 10] = id_meas;
 
     // 2) 误差
-    err_q = _IQ(iq_ref) - iq_meas;
-    err_d = _IQ(id_ref) - id_meas;
+    err_q = iq_ref - iq_meas;
+    err_d = id_ref - id_meas;
 
     // 3) 两个 PID（同一周期内完成）
     _iq uq = PIDControllerIQ_compute(&g_current_q_pid, err_q);
@@ -346,6 +346,7 @@ void vTaskReadSensor()
         // int64_t t0 = esp_timer_get_time();
         int raw_angle = read_data();
         motor_angle = get_angle(raw_angle);
+        motor_angle = _IQmpy(_IQ(7), motor_angle);
         // int64_t t1 = esp_timer_get_time();
         // current_readings output = read_current();
         // int64_t t2 = esp_timer_get_time();

@@ -1,5 +1,6 @@
 #pragma once
 #include <stdio.h>
+#include "IQmathLib.h"
 
 #define ADC_IN_1 ADC_CHANNEL_0
 #define ADC_IN_2 ADC_CHANNEL_3
