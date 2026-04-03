@@ -1,409 +1,137 @@
-#include <stdio.h>
-#include <math.h>
 #include "AS5600.h"
-#include "current_sensor.h"
-#include "transfer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/semphr.h"
-#include "esp_err.h"
-#include "esp_timer.h"
-#include "esp_log.h"
-#include "pid.h"
-#include "pidIQ.h"
-#include "esp_attr.h"
-#include "driver/gptimer.h"
-#include "mcpwm.h"
-#include "driver/gpio.h"
+
+#define _constrain(amt,low,high) ((amt)<(low)?(low):((amt)>(high)?(high):(amt)))
+float voltage_power_supply;
+float Ualpha,Ubeta=0,Ua=0,Ub=0,Uc=0;
+#define _3PI_2 4.71238898038f
+float zero_electric_angle=0;
+int PP=1,DIR=1;
+int pwmA = 32;
+int pwmB = 33;
+int pwmC = 25;
+
+//初始变量及函数定义
+#define _constrain(amt,low,high) ((amt)<(low)?(low):((amt)>(high)?(high):(amt)))
+//宏定义实现的一个约束函数,用于限制一个值的范围。
+//具体来说，该宏定义的名称为 _constrain，接受三个参数 amt、low 和 high，分别表示要限制的值、最小值和最大值。该宏定义的实现使用了三元运算符，根据 amt 是否小于 low 或大于 high，返回其中的最大或最小值，或者返回原值。
+//换句话说，如果 amt 小于 low，则返回 low；如果 amt 大于 high，则返回 high；否则返回 amt。这样，_constrain(amt, low, high) 就会将 amt 约束在 [low, high] 的范围内。1
 
 
-/* -------------------------------------------------------------------------- */
-/*                                 PID频率参数                                     */
-/* -------------------------------------------------------------------------- */
-#define POS_DIV 50
-#define VEL_DIV 10
-
-#define _constraint(in, low, high) ((in) < (low) ? (low) : ((in) > (high) ? (high) : (in)))
-#define power_supply 12
-
-void AS5600_setup();
-int32_t read_data();
-current_readings read_current();
-void current_sensor_setup();
-void pwm_3phase_init(void);
-void pwm_3phase_set_duty_iq(_iq du, _iq dv, _iq dw);
-
-// current pid
-// static PIDController_t g_current_q_pid;
-// static PIDController_t g_current_d_pid;
-// static PIDController_t g_position_pid;
-// static PIDController_t g_velocity_pid;
-static PIDControllerIQ_t g_current_q_pid;
-static PIDControllerIQ_t g_current_d_pid;
-static PIDControllerIQ_t g_position_pid;
-static PIDControllerIQ_t g_velocity_pid;
-
-// 目标位置 & 实测位置
-static volatile float g_p_ref = 0.0f;
-static volatile float g_p_meas = 0.0f;
-
-// 目标速度 & 实测速度
-static volatile float g_v_ref = 0.0f;
-static volatile float g_v_meas = 0.0f;
-
-// 目标电流 & 实测电流
-static volatile float g_i_q_ref  = 0.0f;
-static volatile float g_i_d_ref  = 0.0f;
-static volatile float g_i_q_meas = 0.0f;
-static volatile float g_i_d_meas = 0.0f;
-
-// PID 输出
-static volatile float g_u_q = 0.0f;
-static volatile float g_u_d = 0.0f;
-
-// static float iq_ref;
-// static const float id_ref = 0;
-static _iq iq_ref;
-static const _iq id_ref = _IQ(0);
-static _iq iq_meas;
-static _iq id_meas;
-static _iq i_alpha_meas;
-static _iq i_beta_meas;
-static _iq err_q;
-static _iq err_d;
-// static float uq_list[10];
-// static float ud_list[10];
-static _iq uq_list[10];
-static _iq ud_list[10];
-static _iq iq_list[10];
-static _iq id_list[10];
-static _iq i_alpha_list[10];
-static _iq i_beta_list[10];
-static _iq ia_list[10];
-static _iq ib_list[10];
-volatile bool print_flag = 0;
-static _iq motor_angle = 0;
-static _iq motor_angle_list[10];
-
-static _iq v_alpha;
-static _iq v_beta;
-static _iq v_alpha_list[10];
-static _iq v_beta_list[10];
-
-static _iq v_a;
-static _iq v_b;
-static _iq v_c;
-static _iq v_a_list[10];
-static _iq v_b_list[10];
-static _iq v_c_list[10];
-
-// // 10kHz -> 100us
-// static const float g_dt = 0.0001f;
-
-
-// static void init_all_pids(void)
-// {
-//     // 电流环（d/q）
-//     const float cur_kp = 0.1f;
-//     const float cur_ki = 10.0f;
-//     const float cur_kd = 0.0f;
-//     const float cur_ramp = 0.0f;
-//     const float cur_limit = 1.0f;
-
-//     PIDController_init(&g_current_q_pid, cur_kp, cur_ki, cur_kd, cur_ramp, cur_limit);
-//     PIDController_init(&g_current_d_pid, cur_kp, cur_ki, cur_kd, cur_ramp, cur_limit);
-
-//     // 位置环（输出：速度参考 g_v_ref，单位建议 rad/s）
-//     const float pos_kp = 0.1f;
-//     const float pos_ki = 10.0f;
-//     const float pos_kd = 0.0f;
-//     const float pos_ramp = 0.0f;
-//     const float pos_limit = 1.0f;
-//     PIDController_init(&g_position_pid, pos_kp, pos_ki, pos_kd, pos_ramp, pos_limit);
-
-//     // 速度环（输出：Iq参考 g_i_q_ref）
-//     const float vel_kp = 0.1f;
-//     const float vel_ki = 10.0f;
-//     const float vel_kd = 0.0f;
-//     const float vel_ramp = 0.0f;
-//     const float vel_limit = 1.0f;
-//     PIDController_init(&g_velocity_pid, vel_kp, vel_ki, vel_kd, vel_ramp, vel_limit);
-// }
-
-
-static void init_all_pids(void)
-{
-    // 电流环（d/q）
-    const float cur_kp = 5.0f;
-    const float cur_ki = 0.0f;
-    const float cur_kd = 0.0f;
-    const float cur_ramp = 0.0f;
-    const float cur_limit = 6.0f;
-
-    // 电流环采样周期（比如 10kHz -> 0.0001s）
-    const float cur_Ts = 0.0001f;
-
-    PIDControllerIQ_init(&g_current_q_pid,
-                         _IQ(cur_kp), _IQ(cur_ki), _IQ(cur_kd),
-                         _IQ(cur_ramp), _IQ(cur_limit),
-                         _IQ(cur_Ts));
-
-    PIDControllerIQ_init(&g_current_d_pid,
-                         _IQ(cur_kp), _IQ(cur_ki), _IQ(cur_kd),
-                         _IQ(cur_ramp), _IQ(cur_limit),
-                         _IQ(cur_Ts));
-
-    // 位置环（输出：速度参考 g_v_ref，单位建议 rad/s）
-    const float pos_kp = 0.1f;
-    const float pos_ki = 0.0f;
-    const float pos_kd = 0.0f;
-    const float pos_ramp = 0.0f;
-    const float pos_limit = 1.0f;
-
-    // 位置环采样周期（例如 1kHz -> 0.001s）
-    const float pos_Ts = 0.001f;
-
-    PIDControllerIQ_init(&g_position_pid,
-                         _IQ(pos_kp), _IQ(pos_ki), _IQ(pos_kd),
-                         _IQ(pos_ramp), _IQ(pos_limit),
-                         _IQ(pos_Ts));
-
-    // 速度环（输出：Iq参考 g_i_q_ref）
-    const float vel_kp = 0.1f;
-    const float vel_ki = 0.0f;
-    const float vel_kd = 0.0f;
-    const float vel_ramp = 0.0f;
-    const float vel_limit = 1.0f;
-
-    // 速度环采样周期（例如 1kHz -> 0.001s）
-    const float vel_Ts = 0.001f;
-
-    PIDControllerIQ_init(&g_velocity_pid,
-                         _IQ(vel_kp), _IQ(vel_ki), _IQ(vel_kd),
-                         _IQ(vel_ramp), _IQ(vel_limit),
-                         _IQ(vel_Ts));
+// 归一化角度到 [0,2PI]
+float _normalizeAngle(float angle){
+  float a = fmod(angle, 2*PI);   //取余运算可以用于归一化，列出特殊值例子算便知
+  return a >= 0 ? a : (a + 2*PI);  
+  //三目运算符。格式：condition ? expr1 : expr2 
+  //其中，condition 是要求值的条件表达式，如果条件成立，则返回 expr1 的值，否则返回 expr2 的值。可以将三目运算符视为 if-else 语句的简化形式。
+  //fmod 函数的余数的符号与除数相同。因此，当 angle 的值为负数时，余数的符号将与 _2PI 的符号相反。也就是说，如果 angle 的值小于 0 且 _2PI 的值为正数，则 fmod(angle, _2PI) 的余数将为负数。
+  //例如，当 angle 的值为 -PI/2，_2PI 的值为 2PI 时，fmod(angle, _2PI) 将返回一个负数。在这种情况下，可以通过将负数的余数加上 _2PI 来将角度归一化到 [0, 2PI] 的范围内，以确保角度的值始终为正数。
 }
 
 
-void set_pwm(_iq Ua, _iq Ub, _iq Uc)
+// 设置PWM到控制器输出
+void setPwm(float Ua, float Ub, float Uc) {
+
+  // 计算占空比
+  // 限制占空比从0到1
+  float dc_a = _constrain(Ua / voltage_power_supply, 0.0f , 1.0f );
+  float dc_b = _constrain(Ub / voltage_power_supply, 0.0f , 1.0f );
+  float dc_c = _constrain(Uc / voltage_power_supply, 0.0f , 1.0f );
+
+  //写入PWM到PWM 0 1 2 通道
+  ledcWrite(0, dc_a*255);
+  ledcWrite(1, dc_b*255);
+  ledcWrite(2, dc_c*255);
+}
+
+void setTorque(float Uq,float angle_el) {
+  Uq=_constrain(Uq,-voltage_power_supply/2,voltage_power_supply/2);
+  float Ud=0;
+  angle_el = _normalizeAngle(angle_el);
+  // 帕克逆变换
+  Ualpha =  -Uq*sin(angle_el); 
+  Ubeta =   Uq*cos(angle_el); 
+
+  // 克拉克逆变换
+  Ua = Ualpha + voltage_power_supply/2;
+  Ub = (sqrt(3)*Ubeta-Ualpha)/2 + voltage_power_supply/2;
+  Uc = (-Ualpha-sqrt(3)*Ubeta)/2 + voltage_power_supply/2;
+  setPwm(Ua,Ub,Uc);
+}
+
+void DFOC_Vbus(float power_supply)
 {
-    Ua = _constraint(Ua, _IQ(0), _IQ(power_supply));
-    Ub = _constraint(Ub, _IQ(0), _IQ(power_supply));
-    Uc = _constraint(Uc, _IQ(0), _IQ(power_supply));
-    Ua = _constraint(_IQdiv(Ua, _IQ(power_supply)), _IQ(0), _IQ(1));
-    Ub = _constraint(_IQdiv(Ub, _IQ(power_supply)), _IQ(0), _IQ(1));
-    Uc = _constraint(_IQdiv(Uc, _IQ(power_supply)), _IQ(0), _IQ(1));
-    pwm_3phase_set_duty_iq(Ua, Ub, Uc);
+  voltage_power_supply=power_supply;
+  pinMode(pwmA, OUTPUT);
+  pinMode(pwmB, OUTPUT);
+  pinMode(pwmC, OUTPUT);
+  ledcSetup(0, 30000, 8);  //pwm频道, 频率, 精度
+  ledcSetup(1, 30000, 8);  //pwm频道, 频率, 精度
+  ledcSetup(2, 30000, 8);  //pwm频道, 频率, 精度
+  ledcAttachPin(pwmA, 0);
+  ledcAttachPin(pwmB, 1);
+  ledcAttachPin(pwmC, 2);
+  ESP_LOGI("DFOC", "Power supply set to %.2f V", voltage_power_supply);
+  BeginSensor();
+ }
+
+
+float _electricalAngle(){
+  return  _normalizeAngle((float)(DIR *  PP) * getAngle_Without_track()-zero_electric_angle);
 }
 
 
+void DFOC_alignSensor(int _PP,int _DIR)
+{ 
+  PP=_PP;
+  DIR=_DIR;
+  setTorque(3, _3PI_2);
+  delay(3000);
+  zero_electric_angle=_electricalAngle();
+  setTorque(0, _3PI_2);
+  ESP_LOGI("DFOC", "Sensor aligned. Zero electrical angle: %.4f radians", zero_electric_angle);
+}
 
-/* -------------------------------------------------------------------------- */
-/*                                10kHz ISR                                   */
-/* -------------------------------------------------------------------------- */
-static bool IRAM_ATTR current_loop_isr_cb(gptimer_handle_t timer,
-    const gptimer_alarm_event_data_t *edata,
-    void *user_ctx)
+float DFOC_M0_Angle()
 {
+  return getAngle();
+}
 
-    // static uint32_t pos_count = POS_DIV;
-    // static uint32_t vel_count = VEL_DIV;
+//==============串口接收==============
+float motor_target;
+int commaPosition;
+String serialReceiveUserCommand() {
+  
+  // a string to hold incoming data
+  static String received_chars;
+  
+  String command = "";
 
-    // if(--pos_count == 0){
-    //     pos_count = POS_DIV;
+  while (Serial.available()) {
+    // get the new byte:
+    char inChar = (char)Serial.read();
+    // add it to the string buffer:
+    received_chars += inChar;
 
-    //     float pos_ref = g_p_ref;
-    //     float pos_meas = g_p_meas;
-    //     float pos_err = pos_ref - pos_meas;
-    //     g_v_ref = PIDController_compute(&g_position_pid, pos_err);
-    // }
+    // end of user input
+    if (inChar == '\n') {
+      
+      // execute the user command
+      command = received_chars;
 
-    // if(--vel_count == 0){
-    //     vel_count = VEL_DIV;
-        
-    //     float vel_ref = g_v_ref;
-    //     float vel_meas = g_v_meas;
-
-    //     float vel_err = vel_ref - vel_meas;
-    //     g_i_q_ref = PIDController_compute(&g_velocity_pid, vel_err);
-    //     g_i_d_ref = 0.0f;
-    // }
-    /* -------------------------------------------------------------------------- */
-    /*              TODO： 读输入（后续应该把 g_i_*_meas 用 ADC/park 的结果更新）    */
-    /* -------------------------------------------------------------------------- */
-    static uint32_t isr_cnt = 0;
-    iq_ref = _IQ(0.1);
-    // id_ref  = g_i_d_ref;
-    current_readings output = read_current();
-    ia_list[isr_cnt % 10] = output.Ia;
-    ib_list[isr_cnt % 10] = output.Ib;
-    // ia_list[isr_cnt % 10] = _IQ(2);
-    // ib_list[isr_cnt % 10] = _IQ(2);
-
-    ClarkeTransform(output.Ia, output.Ib, &i_alpha_meas, &i_beta_meas);
-    // ClarkeTransform(_IQ(2), _IQ(2), &i_alpha_meas, &i_beta_meas);
-    i_alpha_list[isr_cnt % 10] = i_alpha_meas;
-    i_beta_list[isr_cnt % 10] = i_beta_meas;
-
-    ParkTransform(i_alpha_meas, i_beta_meas, motor_angle, &id_meas, &iq_meas);
-    motor_angle_list[isr_cnt % 10] = motor_angle;
-    
-    iq_list[isr_cnt % 10] = iq_meas;
-    id_list[isr_cnt % 10] = id_meas;
-
-    // 2) 误差
-    err_q = iq_ref - iq_meas;
-    err_d = id_ref - id_meas;
-
-    // 3) 两个 PID（同一周期内完成）
-    _iq uq = PIDControllerIQ_compute(&g_current_q_pid, err_q);
-    _iq ud = PIDControllerIQ_compute(&g_current_d_pid, err_d);
-
-    uq_list[isr_cnt % 10] = uq;
-    ud_list[isr_cnt % 10] = ud;
-
-    InverseParkTransform(ud, uq, motor_angle, &v_alpha, &v_beta);
-
-    v_alpha_list[isr_cnt % 10] = v_alpha;
-    v_beta_list[isr_cnt % 10] = v_beta;
-
-    InverseClarkeTransform(v_alpha, v_beta, &v_a, &v_b);
-    v_c = - v_a - v_b;
-    v_a += _IQ(power_supply / 2);
-    v_b += _IQ(power_supply / 2);
-    v_c += _IQ(power_supply / 2);
-    v_a_list[isr_cnt % 10] = v_a;
-    v_b_list[isr_cnt % 10] = v_b;
-    v_c_list[isr_cnt % 10] = v_c;
-
-    set_pwm(v_a, v_b, v_c);
-
-    if (isr_cnt % 10 == 9)
-    {
-        print_flag = 1;
+      commaPosition = command.indexOf('\n');//检测字符串中的逗号
+      if(commaPosition != -1)//如果有逗号存在就向下执行
+      {
+          motor_target = command.substring(0,commaPosition).toDouble();            //电机角度
+          Serial.println(motor_target);
+      }
+      // reset the command buffer 
+      received_chars = "";
     }
-
-    ++ isr_cnt;
-    // 4) 保存输出
-    // g_u_q = uq;
-    // g_u_d = ud;
-
-    
-    // int64_t t0 = esp_timer_get_time();
-    // read_data();
-    // int64_t t1 = esp_timer_get_time();
-    // current_readings output = read_current();
-    // int64_t t2 = esp_timer_get_time();
-
-    // ESP_LOGI("TIMING", "read_data=%lld us, read_current=%lld us, total=%lld us", (long long)(t1 - t0), (long long)(t2 - t1), (long long)(t2 - t0));
-    // ESP_LOGI("Current Sensor", "read_data = %ld, %ld", output.Ia, output.Ib);
-
-    return false; // 不触发任务切换
+  }
+  return command;
 }
 
-
-
-
-// 初始化 GPTimer 10kHz 中断
-static gptimer_handle_t init_10khz_timer_isr(void)
-{   
-    
-    gptimer_handle_t timer = NULL;
-
-    // 1MHz 分辨率 => 1 tick = 1 us，10kHz => alarm_count = 100
-    gptimer_config_t tcfg = {
-        .clk_src = GPTIMER_CLK_SRC_DEFAULT,
-        .direction = GPTIMER_COUNT_UP,
-        .resolution_hz = 1000000, // 1 MHz
-    };
-    ESP_ERROR_CHECK(gptimer_new_timer(&tcfg, &timer));
-
-    gptimer_alarm_config_t alarm_cfg = {
-        .reload_count = 0,
-        .alarm_count = 100,      // 100 us
-        .flags.auto_reload_on_alarm = true,
-    };
-    ESP_ERROR_CHECK(gptimer_set_alarm_action(timer, &alarm_cfg));
-
-    gptimer_event_callbacks_t cbs = {
-        .on_alarm = current_loop_isr_cb,
-    };
-    ESP_ERROR_CHECK(gptimer_register_event_callbacks(timer, &cbs, NULL));
-
-    ESP_ERROR_CHECK(gptimer_enable(timer));
-    ESP_ERROR_CHECK(gptimer_start(timer));
-    return timer;
-}
-
-void vTaskReadSensor()
+float serial_motor_target()
 {
-    TickType_t xLastWakeTime;
-    const TickType_t xFrequency = pdMS_TO_TICKS(10);
-    xLastWakeTime = xTaskGetTickCount();
-    while(1)
-    {
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        // int64_t t0 = esp_timer_get_time();
-        int raw_angle = read_data();
-        motor_angle = get_angle(raw_angle);
-        motor_angle = _IQmpy(_IQ(7), motor_angle);
-        // int64_t t1 = esp_timer_get_time();
-        // current_readings output = read_current();
-        // int64_t t2 = esp_timer_get_time();
-
-        // ESP_LOGI("TIMING", "read_data=%lld us, read_current=%lld us, total=%lld us", (long long)(t1 - t0), (long long)(t2 - t1), (long long)(t2 - t0));
-        // ESP_LOGI("Current Sensor", "read_data = %ld, %ld", output.Ia, output.Ib);
-    }
-}
-
-void vTaskPrintData()
-{
-    TickType_t xLastWakeTime;
-    const TickType_t xFrequency = pdMS_TO_TICKS(100);
-    xLastWakeTime = xTaskGetTickCount();
-    while(1)
-    {
-        vTaskDelayUntil(&xLastWakeTime, xFrequency);
-        if (print_flag)
-        {
-            print_flag = 0;
-            for (int i = 0; i < 10; ++i)
-            {
-                ESP_LOGI("DATA", "ia = %f, ib = %f, i_alpha = %f, i_beta = %f, iq = %f, id = %f, uq = %f, ud = %f, angle = %f, v_alpha = %f, v_beta = %f, va = %f, vb = %f, vc = %f", _IQtoF(ia_list[i]), _IQtoF(ib_list[i]), _IQtoF(i_alpha_list[i]), _IQtoF(i_beta_list[i]), _IQtoF(iq_list[i]), _IQtoF(id_list[i]), _IQtoF(uq_list[i]), _IQtoF(ud_list[i]), _IQtoF(motor_angle_list[i]), _IQtoF(v_alpha_list[i]), _IQtoF(v_beta_list[i]), _IQtoF(v_a_list[i]), _IQtoF(v_b_list[i]), _IQtoF(v_c_list[i]));
-            }
-        }
-    }
-}
-
-void app_main(void)
-{
-    printf("hello world!");
-    // 初始化 current pid
-    // init_current_Q_pid();
-    // init_current_D_pid();
-
-    // 初始化 AS5600
-    AS5600_setup();
-    current_sensor_setup();
-
-    gpio_set_direction(GPIO_NUM_12, GPIO_MODE_OUTPUT);
-    gpio_set_level(GPIO_NUM_12, 1);
-    pwm_3phase_init();
-    // pwm_3phase_set_duty(0.6, 0.7, 0.8);
-    // while(1);
-
-    // 初始化 PID（位置/速度/电流）
-    init_all_pids();
-
-    // 启动 10kHz 单 ISR（电流环每次跑；位置/速度用分频）
-    init_10khz_timer_isr();
-
-
-    static uint8_t ucParameterToPass;
-    TaskHandle_t xReadSensorHandle = NULL;
-    xTaskCreate(vTaskReadSensor, "ReadSensor", 4000, &ucParameterToPass, 5, &xReadSensorHandle);
-    configASSERT( xReadSensorHandle );
-    TaskHandle_t xPrintData = NULL;
-    xTaskCreate(vTaskPrintData, "PrintData", 4000, &ucParameterToPass, 5, &xPrintData);
-    configASSERT( xPrintData );
-}
+  return motor_target;
+  }

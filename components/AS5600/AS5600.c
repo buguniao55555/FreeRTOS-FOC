@@ -55,7 +55,7 @@ void AS5600_setup()
 
 
 
-int32_t read_data()
+int32_t AS5600_read_data()
 {
     // RAW ANGLE register high byte is 0x0C
     uint8_t reg = AS5600_REG_RAW_ANGLE_HI;
@@ -94,16 +94,18 @@ int32_t read_data()
  *
  * @param[in]   sensor_counts   sensor count number in raw integer
  * 
- * @return Computed angle in _iq type and of format (degree / 360)
+ * @return Radian angle
  */
-_iq get_angle(int32_t sensor_counts)
+_iq AS5600_get_angle()
 {
     // 4096 counts per mechanical revolution
-     
-    return (_IQ((float)sensor_counts  * 0.0015339808f));
+    
+    return (_IQ(AS5600_read_data()) * _IQ(0.0015339808f)); // 2pi/4096 = 0.0015339808 rad/count
+
+    // return (_IQ((float)sensor_counts  * 0.0015339808f));
 }
 
-float get_angular_velocity(int32_t sensor_counts)
+float AS5600_get_angular_velocity(int32_t sensor_counts)
 {
     const uint64_t now_us = (uint64_t)esp_timer_get_time();
     // 第一次读取

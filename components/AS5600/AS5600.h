@@ -11,7 +11,7 @@
 #define CS1 GPIO_NUM_21
 
 void AS5600_setup(void);
-int32_t read_data(void);                 // 返回累积counts（带overflow展开）
-_iq get_angle(int32_t sensor_counts);  // 度（deg）
-float get_angular_velocity(int32_t sensor_counts); // rad/s
+int32_t AS5600_read_data(void);                 // 返回累积counts（带overflow展开）
+_iq AS5600_get_angle(void);  // 度（deg）
+float AS5600_get_angular_velocity(int32_t sensor_counts); // rad/s
 
